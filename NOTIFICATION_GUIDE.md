@@ -199,3 +199,32 @@ Tizim ishlashi uchun 3 ta narsa bir vaqtda ishlab turishi kerak:
 6.  JavaScript `showNotification` funksiyasini ishga tushirib, ekranga chiroyli xabar chiqaradi.
 
 Tamom! Tizim shu tarzda ishlaydi.
+
+---
+
+## 🔒 7-qadam: Private Notification (Shaxsiy Xabar)
+
+Biz endi **Private Channel** ham qo'shdik. Bu faqat ma'lum bir foydalanuvchiga (masalan, ID=2) xabar yuborish uchun ishlatiladi.
+
+### Qanday ishlaydi?
+
+1.  **Event:** `PrivateNotificationEvent` (user ID qabul qiladi)
+2.  **Controller:**
+    ```php
+    // Faqat ID=2 userga yuborish
+    broadcast(new PrivateNotificationEvent(2, [
+        'title' => 'Shaxsiy Xabar',
+        'message' => '...'
+    ]));
+    ```
+3.  **Channels.php:** Ruxsat berish kerak:
+    ```php
+    Broadcast::channel('user.{id}', function ($user, $id) {
+        return (int) $user->id === (int) $id;
+    });
+    ```
+4.  **Frontend:** `window.Echo.private(...)` ishlatiladi:
+    ```javascript
+    window.Echo.private('user.' + userId)
+        .listen('.private-notification', (e) => { ... });
+    ```

@@ -60,7 +60,19 @@ class PostController extends Controller
         // Debug: Log qilish
         Log::info('Post yaratildi', ['post_id' => $post->id, 'title' => $post->title]);
 
+        // 1. Public Notification (Hamma uchun)
         broadcast(new NewPostEvent($post));
+
+        // 2. Private Notification (Faqat ID=2 user uchun)
+        // Agar post yaratgan odam ID=2 bo'lmasa, unga xabar yuboramiz
+        if (Auth::id() !== 2) {
+            broadcast(new PrivateNotificationEvent(2, [
+                'title' => 'Yangi Shaxsiy Xabar!',
+                'message' => Auth::user()->name . ' yangi post yaratdi: ' . $post->title,
+                'post_id' => $post->id
+            ]));
+            Log::info('Private broadcast user:2 ga yuborildi');
+        }
 
         Log::info('Broadcast yuborildi');
 

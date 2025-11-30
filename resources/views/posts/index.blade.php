@@ -455,11 +455,26 @@
         // Wait for Echo to be initialized
         const initEcho = () => {
             if (window.Echo) {
+                // Public
                 window.Echo.channel('posts')
                     .listen('.new-post', (data) => {
                         console.log('Yangi post:', data);
                         showNotificationAndRefresh(data);
                     });
+
+                // Private
+                const userId = "{{ Auth::id() }}";
+                window.Echo.private('user.' + userId)
+                    .listen('.private-notification', (e) => {
+                        console.log('Shaxsiy xabar:', e);
+                        // Private xabar kelganda ham sahifani yangilashimiz mumkin
+                        // Yoki shunchaki notification ko'rsatish
+                        showNotificationAndRefresh({
+                            title: e.notification.title,
+                            author: 'Tizim'
+                        });
+                    });
+
                 console.log('Echo listener started');
             } else {
                 console.log('Waiting for Echo...');

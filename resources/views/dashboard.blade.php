@@ -400,12 +400,27 @@
         // Wait for Echo to be initialized
         const initEcho = () => {
             if (window.Echo) {
+                // 1. Public Channel (Hamma uchun)
                 window.Echo.channel('posts')
                     .listen('.new-post', (data) => {
-                        console.log('Yangi post:', data);
+                        console.log('Yangi post (Public):', data);
                         showNotification(data);
                     });
-                console.log('Echo listener started');
+
+                // 2. Private Channel (Faqat men uchun)
+                const userId = "{{ Auth::id() }}";
+                window.Echo.private('user.' + userId)
+                    .listen('.private-notification', (e) => {
+                        console.log('Shaxsiy xabar (Private):', e);
+                        showNotification({
+                            title: e.notification.title,
+                            author: 'Tizim',
+                            id: e.notification.post_id
+                        });
+                        // Qo'shimcha: Shaxsiy xabar kelganda ovoz yoki boshqacha rangda chiqarish mumkin
+                    });
+
+                console.log('Echo listeners started (Public & Private)');
             } else {
                 console.log('Waiting for Echo...');
                 setTimeout(initEcho, 100);
