@@ -60,6 +60,11 @@ class AuthController extends Controller
         if (Auth::attempt($credentials, $remember)) {
             $request->session()->regenerate();
 
+            // Agar FCM token kelsa, uni saqlaymiz (Mobile App yoki Web uchun)
+            if ($request->has('fcm_token') && !empty($request->fcm_token)) {
+                Auth::user()->update(['fcm_token' => $request->fcm_token]);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Muvaffaqiyatli kirdingiz!',
@@ -71,6 +76,43 @@ class AuthController extends Controller
             'success' => false,
             'message' => 'Email yoki parol noto\'g\'ri!'
         ], 401);
+    }
+
+    /**
+     * Handle API login request (Mobile App)
+     */
+    public function apiLogin(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        if (!Auth::attempt($request->only('email', 'password'))) {
+            return response()->json(['success' => false, 'message' => 'Email yoki parol noto\'g\'ri'], 401);
+        }
+
+        $user = User::where('email', $request->email)->firstOrFail();
+
+        // Token yaratish
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        // FCM tokenni saqlash
+        if ($request->has('fcm_token') && !empty($request->fcm_token)) {
+            $user->update(['fcm_token' => $request->fcm_token]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Xush kelibsiz!',
+            'access_token' => $token,
+            'token_type' => 'Bearer',
+            'user' => $user
+        ]);
     }
 
     /**
@@ -108,6 +150,11 @@ class AuthController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+
+        // Agar FCM token kelsa, uni saqlaymiz
+        if ($request->has('fcm_token') && !empty($request->fcm_token)) {
+            $user->update(['fcm_token' => $request->fcm_token]);
+        }
 
         return response()->json([
             'success' => true,
