@@ -6,11 +6,14 @@ namespace App\Http\Controllers;
 use App\Events\PrivateNotificationEvent;
 
 use App\Models\Post;
+use App\Models\User;
 use App\Events\NewPostEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Kreait\Firebase\Messaging\CloudMessage;
+use Kreait\Firebase\Messaging\Notification;
 
 class PostController extends Controller
 {
@@ -63,7 +66,7 @@ class PostController extends Controller
         // 1. Public Notification (Hamma uchun)
         broadcast(new NewPostEvent($post));
 
-        // 2. Private Notification (Faqat ID=2 user uchun)
+        // 2. Private Notification (Faqat ID=2 user uchun - Reverb)
         // Agar post yaratgan odam ID=2 bo'lmasa, unga xabar yuboramiz
         if (Auth::id() !== 2) {
             broadcast(new PrivateNotificationEvent(2, [
@@ -74,7 +77,10 @@ class PostController extends Controller
             Log::info('Private broadcast user:2 ga yuborildi');
         }
 
-        Log::info('Broadcast yuborildi');
+        // 3. Firebase Cloud Messaging (Push Notification - Offline users uchun)
+        $this->sendFirebaseNotification($post);
+
+        Log::info('Broadcast va Firebase notification yuborildi');
 
         return redirect()->route('posts.index')->with('success', 'Post muvaffaqiyatli yaratildi!');
     }
@@ -155,5 +161,63 @@ class PostController extends Controller
         $post->delete();
 
         return redirect()->route('posts.index')->with('success', 'Post muvaffaqiyatli o\'chirildi!');
+    }
+
+    /**
+     * Firebase orqali push notification yuborish
+     * 
+     * Yangi post yaratilganda barcha userlarga (fcm_token bor bo'lganlarga)
+     * Firebase Cloud Messaging orqali push notification yuboramiz.
+     * Bu notification brauzer yopiq bo'lganda ham keladi.
+     * 
+     * @param Post $post Yangi yaratilgan post
+     * @return void
+     */
+    private function sendFirebaseNotification(Post $post)
+    {
+        try {
+            // Barcha userlarning FCM tokenlarini olamiz (null bo'lmaganlarini)
+            // O'ziga yubormaslik uchun filter qilamiz
+            $tokens = User::whereNotNull('fcm_token')
+                ->where('id', '!=', Auth::id())
+                ->pluck('fcm_token')
+                ->toArray();
+
+            // Agar hech qanday token bo'lmasa, chiqib ketamiz
+            if (empty($tokens)) {
+                Log::info('Firebase: Hech qanday FCM token topilmadi');
+                return;
+            }
+
+            // Firebase Messaging servisini olamiz
+            $messaging = app('firebase.messaging');
+
+            // Notification xabarini yaratamiz
+            $message = CloudMessage::new()
+                ->withNotification(
+                    Notification::create(
+                        'Yangi Post! 🎉',
+                        Auth::user()->name . ': ' . $post->title
+                    )
+                )
+                ->withData([
+                    'post_id' => (string) $post->id,
+                    'type' => 'new_post',
+                    'click_action' => 'FLUTTER_NOTIFICATION_CLICK'
+                ]);
+
+            // Hamma tokenlarga yuborish (Multicast)
+            $result = $messaging->sendMulticast($message, $tokens);
+
+            // Natijani log qilamiz
+            Log::info('Firebase notification yuborildi', [
+                'total' => count($tokens),
+                'success' => $result->successes()->count(),
+                'failure' => $result->failures()->count()
+            ]);
+        } catch (\Exception $e) {
+            // Xatolik bo'lsa log qilamiz, lekin dasturni to'xtatmaymiz
+            Log::error('Firebase notification xatosi: ' . $e->getMessage());
+        }
     }
 }

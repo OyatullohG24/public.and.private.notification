@@ -21,4 +21,13 @@ Route::middleware('auth')->group(function () {
 
     // Post CRUD Routes
     Route::resource('posts', \App\Http\Controllers\PostController::class);
+
+    // Firebase Notification Routes
+    Route::post('/save-fcm-token', [\App\Http\Controllers\NotificationController::class, 'saveFcmToken'])->name('fcm.save');
+    Route::post('/send-test-notification', [\App\Http\Controllers\NotificationController::class, 'sendTestNotification'])->name('notification.test');
+
+    // Firebase Test Page
+    Route::get('/firebase-test', function () {
+        return view('firebase-test');
+    })->name('firebase.test');
 });
